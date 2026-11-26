@@ -10,7 +10,7 @@
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-frontend.ts';
@@ -30,3 +30,17 @@ writeFileSync(
   join(out, 'dossier.json'),
   buildDossier(out, { text_max_bytes: 163840, screenshots: { max: 4, max_bytes: 262144 }, app_max_files: 993, app_max_bytes: 16777216 }),
 );
+
+// Verify the handed-in output before finishing: a bad dossier or a missing file would only surface at scoring
+// time, so fail loudly here instead.
+const dossierPath = join(out, 'dossier.json');
+if (!existsSync(dossierPath)) throw new Error(`output verification failed: ${dossierPath} was not written`);
+try {
+  JSON.parse(readFileSync(dossierPath, 'utf8'));
+} catch (err) {
+  throw new Error(`output verification failed: dossier.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+}
+if (!existsSync(join(out, 'app', 'index.html'))) throw new Error('output verification failed: app/index.html was not copied to output');
+const shotCount = readdirSync(join(out, 'screenshots')).filter((f) => /\.(png|jpe?g|webp)$/i.test(f)).length;
+if (shotCount < 3 || shotCount > 4) throw new Error(`output verification failed: expected 3-4 screenshots in output, found ${shotCount}`);
+console.log(`output verified: dossier.json valid, app/index.html present, ${shotCount} screenshots`);
